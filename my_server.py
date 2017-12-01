@@ -8,8 +8,33 @@ import time
 SERVER_ADDRESS = (HOST, PORT) = '', 9999
 REQUEST_QUEUE_SIZE = 1024
 
+class Singleton(type):
+    def __init__(self, name, bases, mmbs):
+        super(Singleton, self).__init__(name, bases, mmbs)
+        self._instance = super(Singleton, self).__call__()
 
-class Server:
+    def __call__(self, *args, **kw):
+        return self._instance
+
+class MetaSingleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(MetaSingleton, cls).__call__(*args,
+                                                                     **kwargs)
+        return cls._instances[cls]
+
+class Server(metaclass=Singleton):
+    # __metaclass__ = MetaSingleton
+    # _instance = None
+    routes = {}
+
+    # def __call__(cls, *args, **kwargs):
+    #     if cls not in cls._instance:
+    #         Server._instance = super(Server, cls).__new__(*args,
+    #                                                                  **kwargs)
+    #     return Server._instance
 
     def __init__(self):
         self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -22,6 +47,9 @@ class Server:
         self.config.read(os.path.join(".", "conf", "localhost.conf"))
 
         signal.signal(signal.SIGCHLD, self.grim_reaper)
+        # index()
+        # from controllers.ctrl_functions import index
+        # index()
 
     def serve_forever(self):
 
@@ -192,6 +220,42 @@ class Server:
             if pid == 0:  # no more zombies
                 return
 
+    def register(self, route, methods=['GET']):
+        print(route)
+        routes[route] = {}
+
+        def real_decorator(function):
+            print(function.__name__)
+
+            if self.__add_route_or_false():
+                return
+            def wrapper(*args, **kwargs):
+                print('INSIDE DECORATOR')
+                request = 'HERE GOES REQUEST OBJCET'
+                function(request)
+            return wrapper
+        return real_decorator
+
+    def __add_route_or_false(route, methods, function):
+        if route in routes:
+            return False
+
+        for i in range(len(methods)):
+            if methods in routes[route]:
+                return False
+            else:
+                print('Adding new route...')
+                routes[route][methods[i]] = function
+                return True
+
+
 
 if __name__ == '__main__':
-    Server().serve_forever()
+    s = Server()
+
+    @s.decorator('argument')
+    def test(a):
+        print(a)
+
+    test('aaaaaa')
+    s.serve_forever()
