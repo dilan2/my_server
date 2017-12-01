@@ -82,11 +82,6 @@ class Server:
             hh="Content-type: text/html"
             answer_headers = "{version} {status_code} {message}\n{headerss}\n\n".format(version=headers["version"], status_code=status_code, message=message, headerss=hh)
             answer = answer_headers + answer_body
-        http_response = b"""\
-    HTTP/1.1 200 OK
-
-    Hello, World!
-    """
         print("ANSWER")
         print(answer)
         client_connection.send(answer.encode())
