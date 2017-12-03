@@ -107,7 +107,11 @@ class Server(metaclass=Singleton):
         self.response = Response(headers['version'],
                                  self.directory,
                                  client_connection)
-        Server.routes[headers['uri']]['function'](self.request, self.response)
+        ctrl = Server.routes[headers['uri']]['route_class']()
+        print(ctrl)
+        getattr(ctrl, headers['method'].lower())(self.request, self.response)
+        # print(headers['method'].lower())
+        # ctrl[headers['method'].lower()](self.request, self.response)
         # answer = getattr(self, '_handle_{}'.format(
         #     headers["method"].lower()))(headers, msg_body)
         # client_connection.send(answer.encode())
@@ -204,25 +208,25 @@ class Server(metaclass=Singleton):
     def register(self, route, methods=['GET']):
         print(route)
 
-        def real_decorator(function):
-            print(function.__name__)
+        def real_decorator(route_class):
+            print(route_class.__name__)
 
-            if self.__add_route_or_false(route, methods, function):
+            if self.__add_route_or_false(route, methods, route_class):
                 return
 
             def wrapper(*args, **kwargs):
                 print('INSIDE DECORATOR')
-                function(self.request, self.response)
+                return route_class(self.request, self.response)
             return wrapper
         return real_decorator
 
-    def __add_route_or_false(self, route, methods, function):
+    def __add_route_or_false(self, route, methods, route_class):
         if route in Server.routes:
             print('checking if route exists')
             print(Server.routes)
             return False
         Server.routes[route] = {}
-        Server.routes[route]['function'] = function
+        Server.routes[route]['route_class'] = route_class
         Server.routes[route]['methods'] = methods
         print('Server routes: ')
         print(Server.routes)
