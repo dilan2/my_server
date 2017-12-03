@@ -5,6 +5,8 @@ import socket
 import configparser
 import time
 
+import sys
+sys.path.append('..')
 SERVER_ADDRESS = (HOST, PORT) = '', 9999
 REQUEST_QUEUE_SIZE = 1024
 
@@ -44,6 +46,8 @@ class Server(metaclass=Singleton):
         print('Serving HTTP on port {port} ...'.format(port=PORT))
 
         self.config = configparser.ConfigParser()
+        print('PATH: ' + os.getcwd())
+        print(self.config)
         self.config.read(os.path.join(".", "conf", "localhost.conf"))
 
         signal.signal(signal.SIGCHLD, self.grim_reaper)
@@ -137,6 +141,8 @@ class Server(metaclass=Singleton):
 
     def _handle_get(self, headers, msg_body):
         print('HANDLING GET...')
+        Server.routes['/']['GET']('asdff')
+        print('DIRECTORY: ' + self.directory)
         status_code = 404
         message = "Not Found"
         answer_body = ""
@@ -145,7 +151,9 @@ class Server(metaclass=Singleton):
         else:
             uri_file, uri_params = headers["uri"], ''
         if uri_file in ["/", "/index", "/index.html"]:
+            print('found index request')
             if os.path.exists(os.path.join(self.directory, "index.html")):
+                print('Path exists')
                 status_code = 200
                 message = "OK"
                 with open(os.path.join(self.directory,
@@ -222,12 +230,11 @@ class Server(metaclass=Singleton):
 
     def register(self, route, methods=['GET']):
         print(route)
-        routes[route] = {}
 
         def real_decorator(function):
             print(function.__name__)
 
-            if self.__add_route_or_false():
+            if self.__add_route_or_false(route, methods, function):
                 return
             def wrapper(*args, **kwargs):
                 print('INSIDE DECORATOR')
@@ -236,16 +243,22 @@ class Server(metaclass=Singleton):
             return wrapper
         return real_decorator
 
-    def __add_route_or_false(route, methods, function):
-        if route in routes:
+    def __add_route_or_false(self, route, methods, function):
+        if route in Server.routes:
+            print('checking if route exists')
+            print(Server.routes)
             return False
+        Server.routes[route] = {}
 
+        print('route is not in server')
         for i in range(len(methods)):
-            if methods in routes[route]:
+            if methods[i] in Server.routes[route]:
                 return False
             else:
                 print('Adding new route...')
-                routes[route][methods[i]] = function
+                Server.routes[route][methods[i]] = function
+                print('Server routes: ')
+                print(Server.routes)
                 return True
 
 

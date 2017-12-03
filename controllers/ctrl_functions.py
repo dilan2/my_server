@@ -7,4 +7,4 @@ from app import server
 def index(request):
     print('index function called')
 
-# index()
+
