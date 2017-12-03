@@ -4,11 +4,14 @@ import signal
 import socket
 import configparser
 import time
+from http_base.request import Request
+from http_base.response import Response
 
 import sys
 sys.path.append('..')
 SERVER_ADDRESS = (HOST, PORT) = '', 9999
 REQUEST_QUEUE_SIZE = 1024
+
 
 class Singleton(type):
     def __init__(self, name, bases, mmbs):
@@ -17,6 +20,7 @@ class Singleton(type):
 
     def __call__(self, *args, **kw):
         return self._instance
+
 
 class MetaSingleton(type):
     _instances = {}
@@ -27,16 +31,9 @@ class MetaSingleton(type):
                                                                      **kwargs)
         return cls._instances[cls]
 
-class Server(metaclass=Singleton):
-    # __metaclass__ = MetaSingleton
-    # _instance = None
-    routes = {}
 
-    # def __call__(cls, *args, **kwargs):
-    #     if cls not in cls._instance:
-    #         Server._instance = super(Server, cls).__new__(*args,
-    #                                                                  **kwargs)
-    #     return Server._instance
+class Server(metaclass=Singleton):
+    routes = {}
 
     def __init__(self):
         self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,14 +43,9 @@ class Server(metaclass=Singleton):
         print('Serving HTTP on port {port} ...'.format(port=PORT))
 
         self.config = configparser.ConfigParser()
-        print('PATH: ' + os.getcwd())
-        print(self.config)
         self.config.read(os.path.join(".", "conf", "localhost.conf"))
 
         signal.signal(signal.SIGCHLD, self.grim_reaper)
-        # index()
-        # from controllers.ctrl_functions import index
-        # index()
 
     def serve_forever(self):
 
@@ -105,39 +97,20 @@ class Server(metaclass=Singleton):
         return ''.join(total_data)
 
     def handle_request(self, client_connection):
-        # request = client_connection.recv(1024)
-        request = self.__get_data(client_connection)
-        print(request)
-        data_list = request.split("\r\n")
-        headers, msg_body = self.__get_headers_and_body(data_list)
-        print("HEADERS: ")
-        print(headers)
-        print('MESSAGE')
-        print(msg_body)
+        request_data = self.__get_data(client_connection)
+        self.request = Request(request_data)
+        headers = self.request.headers
+        msg_body = self.request.body
         host = headers["Host"]
         no_port_host = host.split(':')[0]
         self.directory = self.config.get(no_port_host, "Directory")
-        answer = getattr(self, '_handle_{}'.format(
-            headers["method"].lower()))(headers, msg_body)
-        print("ANSWER")
-        print(answer)
-        client_connection.send(answer.encode())
-
-    def __get_headers_and_body(self, data_list):
-        print('DATA_LIST:')
-        print(data_list)
-        headers = {}
-        msg_body = ""
-        headers["method"], headers["uri"], headers["version"] = \
-            data_list[0].split()
-        for header in data_list[1:]:
-            if header != "":
-                if ": " in header:
-                    header_name, header_value = header.split(": ")
-                    headers[header_name] = header_value
-                else:
-                    msg_body += header + "\r\n"
-        return headers, msg_body
+        self.response = Response(headers['version'],
+                                 self.directory,
+                                 client_connection)
+        Server.routes[headers['uri']]['function'](self.request, self.response)
+        # answer = getattr(self, '_handle_{}'.format(
+        #     headers["method"].lower()))(headers, msg_body)
+        # client_connection.send(answer.encode())
 
     def _handle_get(self, headers, msg_body):
         print('HANDLING GET...')
@@ -236,10 +209,10 @@ class Server(metaclass=Singleton):
 
             if self.__add_route_or_false(route, methods, function):
                 return
+
             def wrapper(*args, **kwargs):
                 print('INSIDE DECORATOR')
-                request = 'HERE GOES REQUEST OBJCET'
-                function(request)
+                function(self.request, self.response)
             return wrapper
         return real_decorator
 
@@ -249,26 +222,8 @@ class Server(metaclass=Singleton):
             print(Server.routes)
             return False
         Server.routes[route] = {}
-
-        print('route is not in server')
-        for i in range(len(methods)):
-            if methods[i] in Server.routes[route]:
-                return False
-            else:
-                print('Adding new route...')
-                Server.routes[route][methods[i]] = function
-                print('Server routes: ')
-                print(Server.routes)
-                return True
-
-
-
-if __name__ == '__main__':
-    s = Server()
-
-    @s.decorator('argument')
-    def test(a):
-        print(a)
-
-    test('aaaaaa')
-    s.serve_forever()
+        Server.routes[route]['function'] = function
+        Server.routes[route]['methods'] = methods
+        print('Server routes: ')
+        print(Server.routes)
+        return True
